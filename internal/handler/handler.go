@@ -185,6 +185,9 @@ func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
 		if kind == "image" {
 			rURL = rotateURL(year, name, n)
 			tPath = mediaPath(year, name, n)
+			if info, err := e.Info(); err == nil {
+				tPath = fmt.Sprintf("%s?t=%d", tPath, info.ModTime().Unix())
+			}
 		}
 		files = append(files, MediaFile{
 			Name:      n,
