@@ -1,6 +1,7 @@
 bin/
 *.exe
 .DS_Store
+.env
 
 # keep the media dir but not its contents
 media/*

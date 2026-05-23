@@ -69,6 +69,69 @@ The home page lists years → clicking a year shows its albums → clicking an a
 | `make build` | Build a binary to `bin/app`     |
 | `make tidy`  | Tidy Go module dependencies     |
 
+## Write mode (photo rotation)
+
+Write mode lets you rotate photos directly from the browser. It is protected by a secret key that only you know.
+
+### Configuring the secret key
+
+**Option 1 — inline when running (temporary, lost when the terminal closes):**
+
+```bash
+WRITE_KEY=mysecret make run
+```
+
+**Option 2 — export in your shell profile (persists across sessions):**
+
+Add this line to `~/.bashrc` or `~/.zshrc`:
+
+```bash
+export WRITE_KEY=mysecret
+```
+
+Then reload the profile and start the server normally:
+
+```bash
+source ~/.bashrc   # or source ~/.zshrc
+make run
+```
+
+**Option 3 — `.env` file with a helper script:**
+
+Create a `.env` file in the project root (it is gitignored):
+
+```bash
+echo "WRITE_KEY=mysecret" > .env
+```
+
+Then source it before running:
+
+```bash
+source .env && make run
+```
+
+> Choose a key that is hard to guess — treat it like a password.
+
+### Activating write mode
+
+Once the server is running with `WRITE_KEY` set, append `?key=<your-key>` to any URL in the browser — you only need to do this once:
+
+```
+http://localhost:8080/?key=mysecret
+```
+
+The server validates the key and sets a session cookie, so write mode stays active as you navigate between albums without repeating the query param.
+
+### Using write mode
+
+While write mode is active:
+- A yellow banner is shown on album pages as a reminder
+- Each photo card displays ↶ (counter-clockwise) and ↷ (clockwise) rotate buttons
+- Clicking a button rotates the actual file on disk 90° and refreshes the thumbnail in place — no page reload needed
+- Videos do not have rotate buttons
+
+Write mode is disabled entirely when `WRITE_KEY` is not set.
+
 ## Thumbnail cache
 
 Video thumbnails are generated into `cache/thumbnails/`, mirroring the `media/` path structure:

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -10,12 +11,14 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 type Handler struct {
 	mediaDir    string
 	templateDir string
 	cacheDir    string
+	writeKey    string
 }
 
 type Year struct {
@@ -37,12 +40,18 @@ type Album struct {
 type MediaFile struct {
 	Name      string
 	Path      string // actual media URL (used by lightbox)
-	ThumbPath string // thumbnail URL (image: same as Path, video: /thumb/...)
+	ThumbPath string // thumbnail URL (/thumb/...)
+	RotateURL string // rotation endpoint; empty for videos
 	Type      string // "image" or "video"
 }
 
-func New(mediaDir, templateDir, cacheDir string) *Handler {
-	return &Handler{mediaDir: mediaDir, templateDir: templateDir, cacheDir: cacheDir}
+func New(mediaDir, templateDir, cacheDir, writeKey string) *Handler {
+	return &Handler{
+		mediaDir:    mediaDir,
+		templateDir: templateDir,
+		cacheDir:    cacheDir,
+		writeKey:    writeKey,
+	}
 }
 
 func (h *Handler) render(w http.ResponseWriter, page string, data any) {
@@ -59,8 +68,42 @@ func (h *Handler) render(w http.ResponseWriter, page string, data any) {
 	}
 }
 
+// isWriteMode returns true if the request carries a valid write key via
+// query param or cookie.
+func (h *Handler) isWriteMode(r *http.Request) bool {
+	if h.writeKey == "" {
+		return false
+	}
+	if r.URL.Query().Get("key") == h.writeKey {
+		return true
+	}
+	if c, err := r.Cookie("write_access"); err == nil {
+		return c.Value == h.writeKey
+	}
+	return false
+}
+
+// maybeSetWriteCookie sets a session cookie when a valid key is supplied via
+// query param, so subsequent requests don't need to repeat the param.
+func (h *Handler) maybeSetWriteCookie(w http.ResponseWriter, r *http.Request) {
+	if h.writeKey == "" {
+		return
+	}
+	if r.URL.Query().Get("key") == h.writeKey {
+		http.SetCookie(w, &http.Cookie{
+			Name:     "write_access",
+			Value:    h.writeKey,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+		})
+	}
+}
+
 // Index lists all year-level directories under media/.
 func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
+	h.maybeSetWriteCookie(w, r)
+
 	entries, err := os.ReadDir(h.mediaDir)
 	if err != nil {
 		http.Error(w, "cannot read media directory", http.StatusInternalServerError)
@@ -76,11 +119,16 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	}
 	slices.Reverse(years)
 
-	h.render(w, "index", map[string]any{"Years": years})
+	h.render(w, "index", map[string]any{
+		"Years":     years,
+		"WriteMode": h.isWriteMode(r),
+	})
 }
 
 // YearView lists album directories within a single year.
 func (h *Handler) YearView(w http.ResponseWriter, r *http.Request) {
+	h.maybeSetWriteCookie(w, r)
+
 	year := filepath.Base(r.PathValue("year"))
 	yearPath := filepath.Join(h.mediaDir, year)
 
@@ -100,14 +148,17 @@ func (h *Handler) YearView(w http.ResponseWriter, r *http.Request) {
 	slices.Reverse(albums)
 
 	h.render(w, "year", map[string]any{
-		"Year":    year,
-		"URLYear": url.PathEscape(year),
-		"Albums":  albums,
+		"Year":      year,
+		"URLYear":   url.PathEscape(year),
+		"Albums":    albums,
+		"WriteMode": h.isWriteMode(r),
 	})
 }
 
 // Album lists media files within a single album.
 func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
+	h.maybeSetWriteCookie(w, r)
+
 	year := filepath.Base(r.PathValue("year"))
 	name := filepath.Base(r.PathValue("name"))
 	albumPath := filepath.Join(h.mediaDir, year, name)
@@ -129,12 +180,15 @@ func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
 		if kind == "" {
 			continue
 		}
-		mp := mediaPath(year, name, n)
-		tp := thumbURL(year, name, n)
+		rURL := ""
+		if kind == "image" {
+			rURL = rotateURL(year, name, n)
+		}
 		files = append(files, MediaFile{
 			Name:      n,
-			Path:      mp,
-			ThumbPath: tp,
+			Path:      mediaPath(year, name, n),
+			ThumbPath: thumbURL(year, name, n),
+			RotateURL: rURL,
 			Type:      kind,
 		})
 	}
@@ -144,10 +198,11 @@ func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
 		"URLYear":   url.PathEscape(year),
 		"AlbumName": name,
 		"Files":     files,
+		"WriteMode": h.isWriteMode(r),
 	})
 }
 
-// Thumb serves a video thumbnail, generating it on first request.
+// Thumb serves a video or image thumbnail, generating it on first request.
 func (h *Handler) Thumb(w http.ResponseWriter, r *http.Request) {
 	year := filepath.Base(r.PathValue("year"))
 	album := filepath.Base(r.PathValue("album"))
@@ -171,9 +226,42 @@ func (h *Handler) Thumb(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, thumbPath)
 }
 
-func generateThumb(videoPath, thumbPath string) error {
+// Rotate rotates an image 90° CW or CCW, updates the file in place, and
+// returns an updated <img> fragment for HTMX to swap into the page.
+func (h *Handler) Rotate(w http.ResponseWriter, r *http.Request) {
+	if !h.isWriteMode(r) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	year := filepath.Base(r.PathValue("year"))
+	album := filepath.Base(r.PathValue("album"))
+	file := filepath.Base(r.PathValue("file"))
+	dir := r.URL.Query().Get("dir") // "cw" or "ccw"
+
+	filePath := filepath.Join(h.mediaDir, year, album, file)
+
+	if err := rotateImage(filePath, dir); err != nil {
+		log.Printf("rotate failed for %s: %v", filePath, err)
+		http.Error(w, "rotation failed", http.StatusInternalServerError)
+		return
+	}
+
+	// Invalidate cached thumbnail so the next /thumb request regenerates it.
+	thumbPath := filepath.Join(h.cacheDir, "thumbnails", year, album, file+".jpg")
+	os.Remove(thumbPath)
+
+	// Return a cache-busted <img> for HTMX to swap in.
+	newThumb := fmt.Sprintf("%s?t=%d", thumbURL(year, album, file), time.Now().UnixMilli())
+	fmt.Fprintf(w,
+		`<img src="%s" alt="%s" loading="lazy" style="object-fit: cover; width: 100%%; height: 100%%;">`,
+		newThumb, file,
+	)
+}
+
+func generateThumb(sourcePath, thumbPath string) error {
 	cmd := exec.Command("ffmpeg",
-		"-i", videoPath,
+		"-i", sourcePath,
 		"-ss", "00:00:01",
 		"-vframes", "1",
 		"-vf", "scale=480:-1",
@@ -182,6 +270,26 @@ func generateThumb(videoPath, thumbPath string) error {
 		thumbPath,
 	)
 	return cmd.Run()
+}
+
+func rotateImage(filePath, dir string) error {
+	var transpose string
+	switch dir {
+	case "cw":
+		transpose = "transpose=1"
+	case "ccw":
+		transpose = "transpose=2"
+	default:
+		return fmt.Errorf("invalid direction: %s", dir)
+	}
+
+	tmp := filePath + ".rotating"
+	cmd := exec.Command("ffmpeg", "-i", filePath, "-vf", transpose, "-y", tmp)
+	if err := cmd.Run(); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, filePath)
 }
 
 func buildYear(mediaDir, name string) Year {
@@ -248,6 +356,10 @@ func mediaPath(year, album, file string) string {
 
 func thumbURL(year, album, file string) string {
 	return "/thumb/" + url.PathEscape(year) + "/" + url.PathEscape(album) + "/" + url.PathEscape(file)
+}
+
+func rotateURL(year, album, file string) string {
+	return "/rotate/" + url.PathEscape(year) + "/" + url.PathEscape(album) + "/" + url.PathEscape(file)
 }
 
 // isDir reports whether the entry is a directory, following symlinks.

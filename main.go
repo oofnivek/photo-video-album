@@ -3,17 +3,24 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"photo-video-album/internal/handler"
 )
 
 func main() {
-	h := handler.New("media", "templates", "cache")
+	writeKey := os.Getenv("WRITE_KEY")
+	if writeKey == "" {
+		log.Println("WRITE_KEY not set — write mode disabled")
+	}
+
+	h := handler.New("media", "templates", "cache", writeKey)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", h.Index)
 	mux.HandleFunc("GET /year/{year}", h.YearView)
 	mux.HandleFunc("GET /album/{year}/{name}", h.Album)
 	mux.HandleFunc("GET /thumb/{year}/{album}/{file}", h.Thumb)
+	mux.HandleFunc("POST /rotate/{year}/{album}/{file}", h.Rotate)
 	mux.Handle("GET /media/", http.StripPrefix("/media/", http.FileServer(http.Dir("media"))))
 
 	addr := ":8080"
