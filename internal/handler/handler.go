@@ -347,7 +347,7 @@ func rotateImage(filePath, dir string) error {
 		return fmt.Errorf("invalid direction: %s", dir)
 	}
 
-	tmp := filePath + ".rotating"
+	tmp := filePath + ".tmp.jpg"
 	cmd := exec.Command("ffmpeg", "-i", filePath, "-vf", transpose, "-y", tmp)
 	if err := cmd.Run(); err != nil {
 		os.Remove(tmp)

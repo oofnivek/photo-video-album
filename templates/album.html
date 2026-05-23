@@ -34,11 +34,13 @@
         <p class="is-size-7 has-text-grey" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ $f.Name }}</p>
         {{ if and $.WriteMode (eq $f.Type "image") }}
         <div style="display: flex; gap: 0.25rem; flex-shrink: 0; margin-left: 0.5rem;">
-          <button class="button is-small is-light" title="Rotate counter-clockwise"
+          <button class="button is-light" title="Rotate counter-clockwise"
+                  style="font-size: 1.2rem;"
                   hx-post="{{ $f.RotateURL }}?dir=ccw"
                   hx-target="#fig-{{ $i }}"
                   hx-swap="innerHTML">&#8634;</button>
-          <button class="button is-small is-light" title="Rotate clockwise"
+          <button class="button is-light" title="Rotate clockwise"
+                  style="font-size: 1.2rem;"
                   hx-post="{{ $f.RotateURL }}?dir=cw"
                   hx-target="#fig-{{ $i }}"
                   hx-swap="innerHTML">&#8635;</button>
