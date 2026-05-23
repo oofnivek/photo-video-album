@@ -216,6 +216,7 @@ func (h *Handler) Thumb(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "cache directory error", http.StatusInternalServerError)
 			return
 		}
+		log.Printf("generating thumbnail: %s", sourcePath)
 		if err := generateThumb(sourcePath, thumbPath); err != nil {
 			log.Printf("thumb generation failed for %s: %v", sourcePath, err)
 			http.NotFound(w, r)
@@ -257,6 +258,61 @@ func (h *Handler) Rotate(w http.ResponseWriter, r *http.Request) {
 		`<img src="%s" alt="%s" loading="lazy" style="object-fit: cover; width: 100%%; height: 100%%;">`,
 		newThumb, file,
 	)
+}
+
+// PreGenThumbnails walks all media in descending order and generates any missing
+// thumbnails. Intended to run in a background goroutine at startup.
+func (h *Handler) PreGenThumbnails() {
+	years, err := os.ReadDir(h.mediaDir)
+	if err != nil {
+		log.Printf("pregen: cannot read media dir: %v", err)
+		return
+	}
+	slices.Reverse(years)
+	for _, y := range years {
+		if !isDir(h.mediaDir, y) {
+			continue
+		}
+		yearPath := filepath.Join(h.mediaDir, y.Name())
+		albums, err := os.ReadDir(yearPath)
+		if err != nil {
+			continue
+		}
+		slices.Reverse(albums)
+		for _, a := range albums {
+			if !isDir(yearPath, a) {
+				continue
+			}
+			albumPath := filepath.Join(yearPath, a.Name())
+			files, err := os.ReadDir(albumPath)
+			if err != nil {
+				continue
+			}
+			slices.Reverse(files)
+			for _, f := range files {
+				if f.IsDir() {
+					continue
+				}
+				if mediaKind(strings.ToLower(filepath.Ext(f.Name()))) == "" {
+					continue
+				}
+				sourcePath := filepath.Join(albumPath, f.Name())
+				thumbPath := filepath.Join(h.cacheDir, "thumbnails", y.Name(), a.Name(), f.Name()+".jpg")
+				if _, err := os.Stat(thumbPath); err == nil {
+					continue
+				}
+				if err := os.MkdirAll(filepath.Dir(thumbPath), 0755); err != nil {
+					log.Printf("pregen: mkdir failed: %v", err)
+					continue
+				}
+				log.Printf("generating thumbnail: %s", sourcePath)
+				if err := generateThumb(sourcePath, thumbPath); err != nil {
+					log.Printf("pregen: thumb generation failed for %s: %v", sourcePath, err)
+				}
+			}
+		}
+	}
+	log.Println("pregen: all thumbnails up to date")
 }
 
 func generateThumb(sourcePath, thumbPath string) error {

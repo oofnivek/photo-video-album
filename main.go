@@ -14,6 +14,7 @@ func main() {
 	}
 
 	h := handler.New("media", "templates", "cache", writeKey)
+	go h.PreGenThumbnails()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", h.Index)
