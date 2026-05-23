@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,11 @@ type Handler struct {
 	templateDir string
 	cacheDir    string
 	writeKey    string
+
+	thumbMu      sync.Mutex
+	thumbTotal   int
+	thumbDone    int
+	thumbRunning bool
 }
 
 type Year struct {
@@ -274,13 +280,49 @@ func (h *Handler) Rotate(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
+type thumbJob struct {
+	src, thumb, kind string
+}
+
 // PreGenThumbnails walks all media in descending order and generates any missing
 // thumbnails. Intended to run in a background goroutine at startup.
 func (h *Handler) PreGenThumbnails() {
+	jobs := h.collectMissingThumbs()
+
+	h.thumbMu.Lock()
+	h.thumbTotal = len(jobs)
+	h.thumbDone = 0
+	h.thumbRunning = len(jobs) > 0
+	h.thumbMu.Unlock()
+
+	if len(jobs) == 0 {
+		log.Println("pregen: all thumbnails up to date")
+		return
+	}
+
+	log.Printf("pregen: %d thumbnails to generate", len(jobs))
+	for _, j := range jobs {
+		log.Printf("generating thumbnail: %s", j.src)
+		if err := generateThumb(j.src, j.thumb, j.kind); err != nil {
+			log.Printf("pregen: thumb generation failed for %s: %v", j.src, err)
+		}
+		h.thumbMu.Lock()
+		h.thumbDone++
+		h.thumbMu.Unlock()
+	}
+
+	h.thumbMu.Lock()
+	h.thumbRunning = false
+	h.thumbMu.Unlock()
+	log.Println("pregen: all thumbnails up to date")
+}
+
+func (h *Handler) collectMissingThumbs() []thumbJob {
+	var jobs []thumbJob
 	years, err := os.ReadDir(h.mediaDir)
 	if err != nil {
 		log.Printf("pregen: cannot read media dir: %v", err)
-		return
+		return nil
 	}
 	slices.Reverse(years)
 	for _, y := range years {
@@ -311,23 +353,48 @@ func (h *Handler) PreGenThumbnails() {
 				if kind == "" {
 					continue
 				}
-				sourcePath := filepath.Join(albumPath, f.Name())
-				thumbPath := filepath.Join(h.cacheDir, "thumbnails", y.Name(), a.Name(), f.Name()+".jpg")
-				if _, err := os.Stat(thumbPath); err == nil {
+				src := filepath.Join(albumPath, f.Name())
+				thumb := filepath.Join(h.cacheDir, "thumbnails", y.Name(), a.Name(), f.Name()+".jpg")
+				if _, err := os.Stat(thumb); err == nil {
 					continue
 				}
-				if err := os.MkdirAll(filepath.Dir(thumbPath), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Dir(thumb), 0755); err != nil {
 					log.Printf("pregen: mkdir failed: %v", err)
 					continue
 				}
-				log.Printf("generating thumbnail: %s", sourcePath)
-				if err := generateThumb(sourcePath, thumbPath, kind); err != nil {
-					log.Printf("pregen: thumb generation failed for %s: %v", sourcePath, err)
-				}
+				jobs = append(jobs, thumbJob{src: src, thumb: thumb, kind: kind})
 			}
 		}
 	}
-	log.Println("pregen: all thumbnails up to date")
+	return jobs
+}
+
+// ThumbProgress returns an HTML fragment showing thumbnail generation progress.
+// When generation is idle it returns an empty div (no hx-trigger) so polling stops.
+func (h *Handler) ThumbProgress(w http.ResponseWriter, r *http.Request) {
+	h.thumbMu.Lock()
+	total := h.thumbTotal
+	done := h.thumbDone
+	running := h.thumbRunning
+	h.thumbMu.Unlock()
+
+	w.Header().Set("Content-Type", "text/html")
+	if !running {
+		fmt.Fprint(w, `<div id="thumb-progress"></div>`)
+		return
+	}
+
+	pct := 0
+	if total > 0 {
+		pct = done * 100 / total
+	}
+	fmt.Fprintf(w,
+		`<div id="thumb-progress" hx-get="/thumb/progress" hx-trigger="every 3s" hx-swap="outerHTML"`+
+			` style="padding:0.4rem 1.5rem; background:#fffbe6; border-bottom:1px solid #ffe58f;">`+
+			`<p style="font-size:0.82rem; margin-bottom:0.2rem;">Generating thumbnails: %d / %d</p>`+
+			`<progress class="progress is-warning is-small" value="%d" max="%d" style="margin-bottom:0;">%d%%</progress>`+
+			`</div>`,
+		done, total, done, total, pct)
 }
 
 func generateThumb(sourcePath, thumbPath, kind string) error {

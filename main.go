@@ -20,6 +20,7 @@ func main() {
 	mux.HandleFunc("GET /{$}", h.Index)
 	mux.HandleFunc("GET /year/{year}", h.YearView)
 	mux.HandleFunc("GET /album/{year}/{name}", h.Album)
+	mux.HandleFunc("GET /thumb/progress", h.ThumbProgress)
 	mux.HandleFunc("GET /thumb/{year}/{album}/{file}", h.Thumb)
 	mux.HandleFunc("POST /rotate/{year}/{album}/{file}", h.Rotate)
 	mux.Handle("GET /media/", http.StripPrefix("/media/", http.FileServer(http.Dir("media"))))
