@@ -7,26 +7,31 @@
 </nav>
 
 <div class="columns is-multiline">
-  {{ range .Files }}
+  {{ range $i, $f := .Files }}
   <div class="column is-one-quarter-desktop is-one-third-tablet is-half-mobile">
-    <div class="card">
+    <div class="card" style="cursor: pointer;" onclick="lbOpen({{ $i }})">
       <div class="card-image">
-        {{ if eq .Type "image" }}
+        {{ if eq $f.Type "image" }}
         <figure class="image is-square">
-          <img src="{{ .Path }}" alt="{{ .Name }}" loading="lazy"
+          <img src="{{ $f.Path }}" alt="{{ $f.Name }}" loading="lazy"
                style="object-fit: cover; width: 100%; height: 100%;">
         </figure>
         {{ else }}
-        <figure class="image is-square" style="position: relative;">
-          <video controls preload="metadata"
+        <figure class="image is-square" style="position: relative; background: #000;">
+          <span style="position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="white" opacity="0.85">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </span>
+          <video preload="metadata" muted
                  style="object-fit: cover; width: 100%; height: 100%; position: absolute; top: 0; left: 0;">
-            <source src="{{ .Path }}">
+            <source src="{{ $f.Path }}">
           </video>
         </figure>
         {{ end }}
       </div>
       <div class="card-content p-2">
-        <p class="is-size-7 has-text-grey">{{ .Name }}</p>
+        <p class="is-size-7 has-text-grey">{{ $f.Name }}</p>
       </div>
     </div>
   </div>
@@ -38,4 +43,86 @@
   </div>
   {{ end }}
 </div>
+
+<!-- Lightbox -->
+<div id="lightbox" class="modal">
+  <div class="modal-background" onclick="lbClose()"></div>
+
+  <div style="position: relative; display: flex; flex-direction: column; align-items: center;
+              max-width: 92vw; max-height: 92vh; margin: auto;">
+    <div id="lb-media" style="display: flex; align-items: center; justify-content: center;
+                               max-width: 92vw; max-height: 80vh;"></div>
+    <div style="margin-top: 0.75rem; display: flex; align-items: center; gap: 1rem;">
+      <button class="button is-dark is-small" id="lb-prev" onclick="lbPrev()">&#8592;</button>
+      <span id="lb-counter" class="has-text-white is-size-7"></span>
+      <button class="button is-dark is-small" id="lb-next" onclick="lbNext()">&#8594;</button>
+    </div>
+    <p id="lb-caption" class="has-text-white is-size-7 mt-2"
+       style="max-width: 80vw; text-align: center; word-break: break-all;"></p>
+  </div>
+
+  <button class="modal-close is-large" aria-label="close" onclick="lbClose()"></button>
+</div>
+
+<script>
+const lbItems = [
+  {{ range .Files -}}
+  { src: "{{ .Path }}", type: "{{ .Type }}", name: "{{ .Name }}" },
+  {{ end }}
+];
+
+let lbCurrent = 0;
+
+function lbOpen(i) {
+  lbCurrent = i;
+  lbRender();
+  document.getElementById("lightbox").classList.add("is-active");
+  document.documentElement.classList.add("is-clipped");
+}
+
+function lbClose() {
+  document.getElementById("lightbox").classList.remove("is-active");
+  document.documentElement.classList.remove("is-clipped");
+  document.getElementById("lb-media").innerHTML = "";
+}
+
+function lbPrev() {
+  lbCurrent = (lbCurrent - 1 + lbItems.length) % lbItems.length;
+  lbRender();
+}
+
+function lbNext() {
+  lbCurrent = (lbCurrent + 1) % lbItems.length;
+  lbRender();
+}
+
+function lbRender() {
+  const item = lbItems[lbCurrent];
+  const container = document.getElementById("lb-media");
+
+  if (item.type === "image") {
+    container.innerHTML =
+      `<img src="${item.src}" style="max-width:92vw; max-height:80vh; object-fit:contain; display:block;">`;
+  } else {
+    container.innerHTML =
+      `<video src="${item.src}" controls autoplay
+              style="max-width:92vw; max-height:80vh;"></video>`;
+  }
+
+  document.getElementById("lb-caption").textContent = item.name;
+  document.getElementById("lb-counter").textContent =
+    lbItems.length > 1 ? `${lbCurrent + 1} / ${lbItems.length}` : "";
+
+  const single = lbItems.length <= 1;
+  document.getElementById("lb-prev").style.display = single ? "none" : "";
+  document.getElementById("lb-next").style.display = single ? "none" : "";
+}
+
+document.addEventListener("keydown", e => {
+  if (!document.getElementById("lightbox").classList.contains("is-active")) return;
+  if (e.key === "Escape")      lbClose();
+  if (e.key === "ArrowLeft")   lbPrev();
+  if (e.key === "ArrowRight")  lbNext();
+});
+</script>
 {{ end }}
