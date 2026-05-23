@@ -81,8 +81,11 @@ func (h *Handler) isWriteMode(r *http.Request) bool {
 	if h.writeKey == "" {
 		return false
 	}
-	if r.URL.Query().Get("key") == h.writeKey {
-		return true
+	// If an explicit key param is present, use it directly — don't fall
+	// through to the cookie, because the cookie may not yet reflect a
+	// clear that was written to the response on this same request.
+	if key := r.URL.Query().Get("key"); key != "" {
+		return key == h.writeKey
 	}
 	if c, err := r.Cookie("write_access"); err == nil {
 		return c.Value == h.writeKey
