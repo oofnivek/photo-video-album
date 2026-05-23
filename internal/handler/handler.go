@@ -249,16 +249,20 @@ func (h *Handler) Rotate(w http.ResponseWriter, r *http.Request) {
 	dir := r.URL.Query().Get("dir") // "cw" or "ccw"
 
 	filePath := filepath.Join(h.mediaDir, year, album, file)
+	log.Printf("rotate: %s dir=%s", filePath, dir)
 
 	if err := rotateImage(filePath, dir); err != nil {
 		log.Printf("rotate failed for %s: %v", filePath, err)
 		http.Error(w, "rotation failed", http.StatusInternalServerError)
 		return
 	}
+	log.Printf("rotate: done %s", filePath)
 
 	// Invalidate cached thumbnail so the next /thumb request regenerates it.
 	thumbPath := filepath.Join(h.cacheDir, "thumbnails", year, album, file+".jpg")
-	os.Remove(thumbPath)
+	if err := os.Remove(thumbPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("rotate: failed to remove cached thumbnail %s: %v", thumbPath, err)
+	}
 
 	// Return a cache-busted <img> for HTMX to swap in.
 	newThumb := fmt.Sprintf("%s?t=%d", thumbURL(year, album, file), time.Now().UnixMilli())
@@ -349,11 +353,15 @@ func rotateImage(filePath, dir string) error {
 
 	tmp := filePath + ".tmp.jpg"
 	cmd := exec.Command("ffmpeg", "-i", filePath, "-vf", transpose, "-y", tmp)
-	if err := cmd.Run(); err != nil {
+	if out, err := cmd.CombinedOutput(); err != nil {
 		os.Remove(tmp)
-		return err
+		return fmt.Errorf("%w\nffmpeg output:\n%s", err, out)
 	}
-	return os.Rename(tmp, filePath)
+	if err := os.Rename(tmp, filePath); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("rename tmp to original: %w", err)
+	}
+	return nil
 }
 
 func buildYear(mediaDir, name string) Year {
