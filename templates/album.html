@@ -1,7 +1,8 @@
 {{ define "content" }}
 <nav class="breadcrumb mb-4" aria-label="breadcrumbs">
   <ul>
-    <li><a href="/">Albums</a></li>
+    <li><a href="/">Years</a></li>
+    <li><a href="/year/{{ .URLYear }}">{{ .Year }}</a></li>
     <li class="is-active"><a aria-current="page">{{ .AlbumName }}</a></li>
   </ul>
 </nav>

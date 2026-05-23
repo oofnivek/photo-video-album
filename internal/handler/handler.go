@@ -16,11 +16,20 @@ type Handler struct {
 	templateDir string
 }
 
+type Year struct {
+	Name       string
+	URLName    string
+	AlbumCount int
+	ThumbPath  string // first image found across albums
+}
+
 type Album struct {
 	Name      string
-	URLName   string // url-encoded, safe for use in href
+	URLName   string
+	Year      string
+	URLYear   string
 	Count     int
-	ThumbPath string // first image found, empty if none
+	ThumbPath string
 }
 
 type MediaFile struct {
@@ -47,6 +56,7 @@ func (h *Handler) render(w http.ResponseWriter, page string, data any) {
 	}
 }
 
+// Index lists all year-level directories under media/.
 func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	entries, err := os.ReadDir(h.mediaDir)
 	if err != nil {
@@ -54,30 +64,50 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var albums []Album
+	var years []Year
 	for _, e := range entries {
 		if !isDir(h.mediaDir, e) {
 			continue
 		}
-		album := buildAlbum(h.mediaDir, e.Name())
-		albums = append(albums, album)
+		years = append(years, buildYear(h.mediaDir, e.Name()))
 	}
+	slices.Reverse(years) // newest year first
 
-	// newest first — names are date-prefixed so reverse lexicographic works
-	slices.Reverse(albums)
-
-	h.render(w, "index", map[string]any{"Albums": albums})
+	h.render(w, "index", map[string]any{"Years": years})
 }
 
-func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+// YearView lists album directories within a single year.
+func (h *Handler) YearView(w http.ResponseWriter, r *http.Request) {
+	year := filepath.Base(r.PathValue("year"))
+	yearPath := filepath.Join(h.mediaDir, year)
 
-	// guard against path traversal
-	albumPath := filepath.Join(h.mediaDir, filepath.Clean("/"+name))
-	if !strings.HasPrefix(albumPath, filepath.Clean(h.mediaDir)+string(filepath.Separator)) {
-		http.Error(w, "not found", http.StatusNotFound)
+	entries, err := os.ReadDir(yearPath)
+	if err != nil {
+		http.Error(w, "year not found", http.StatusNotFound)
 		return
 	}
+
+	var albums []Album
+	for _, e := range entries {
+		if !isDir(yearPath, e) {
+			continue
+		}
+		albums = append(albums, buildAlbum(h.mediaDir, year, e.Name()))
+	}
+	slices.Reverse(albums)
+
+	h.render(w, "year", map[string]any{
+		"Year":    year,
+		"URLYear": url.PathEscape(year),
+		"Albums":  albums,
+	})
+}
+
+// Album lists media files within a single album.
+func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
+	year := filepath.Base(r.PathValue("year"))
+	name := filepath.Base(r.PathValue("name"))
+	albumPath := filepath.Join(h.mediaDir, year, name)
 
 	entries, err := os.ReadDir(albumPath)
 	if err != nil {
@@ -98,28 +128,52 @@ func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
 		}
 		files = append(files, MediaFile{
 			Name: n,
-			Path: "/media/" + url.PathEscape(name) + "/" + url.PathEscape(n),
+			Path: mediaPath(year, name, n),
 			Type: kind,
 		})
 	}
 
 	h.render(w, "album", map[string]any{
+		"Year":      year,
+		"URLYear":   url.PathEscape(year),
 		"AlbumName": name,
 		"Files":     files,
 	})
 }
 
-func buildAlbum(mediaDir, name string) Album {
+func buildYear(mediaDir, name string) Year {
+	y := Year{Name: name, URLName: url.PathEscape(name)}
+	yearPath := filepath.Join(mediaDir, name)
+
+	entries, err := os.ReadDir(yearPath)
+	if err != nil {
+		return y
+	}
+	for _, e := range entries {
+		if !isDir(yearPath, e) {
+			continue
+		}
+		y.AlbumCount++
+		if y.ThumbPath == "" {
+			if a := buildAlbum(mediaDir, name, e.Name()); a.ThumbPath != "" {
+				y.ThumbPath = a.ThumbPath
+			}
+		}
+	}
+	return y
+}
+
+func buildAlbum(mediaDir, year, name string) Album {
 	a := Album{
 		Name:    name,
 		URLName: url.PathEscape(name),
+		Year:    year,
+		URLYear: url.PathEscape(year),
 	}
-
-	entries, err := os.ReadDir(filepath.Join(mediaDir, name))
+	entries, err := os.ReadDir(filepath.Join(mediaDir, year, name))
 	if err != nil {
 		return a
 	}
-
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
@@ -129,11 +183,14 @@ func buildAlbum(mediaDir, name string) Album {
 			a.Count++
 		}
 		if a.ThumbPath == "" && mediaKind(ext) == "image" {
-			a.ThumbPath = "/media/" + url.PathEscape(name) + "/" + url.PathEscape(e.Name())
+			a.ThumbPath = mediaPath(year, name, e.Name())
 		}
 	}
-
 	return a
+}
+
+func mediaPath(year, album, file string) string {
+	return "/media/" + url.PathEscape(year) + "/" + url.PathEscape(album) + "/" + url.PathEscape(file)
 }
 
 // isDir reports whether the entry is a directory, following symlinks.

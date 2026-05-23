@@ -21,21 +21,21 @@ Then open [http://localhost:8080](http://localhost:8080) in your browser.
 
 ## Adding media
 
-Organise files into albums by creating named subfolders inside `media/`. Folder names can be a year, a date, or a descriptive title:
+Organise files in a two-level hierarchy: year folders at the top, named album folders inside each year:
 
 ```
 media/
 ├── 2025/
-│   ├── photo1.jpg
-│   └── clip.mp4
-├── 2026/
-│   └── photo2.png
-└── 2026-12-25 Skiing in Switzerland/
-    ├── family.jpg
-    └── highlight.mp4
+│   └── 2025-07-10 Summer Road Trip/
+│       ├── photo1.jpg
+│       └── clip.mp4
+└── 2026/
+    └── 2026-12-25 Skiing in Switzerland/
+        ├── family.jpg
+        └── highlight.mp4
 ```
 
-Each subfolder becomes an album on the home page. Refresh after adding files — no server restart needed.
+The home page lists years → clicking a year shows its albums → clicking an album shows the media. Refresh after adding files — no server restart needed.
     
 **Supported formats**
 

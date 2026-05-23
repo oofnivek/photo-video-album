@@ -11,7 +11,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", h.Index)
-	mux.HandleFunc("GET /album/{name}", h.Album)
+	mux.HandleFunc("GET /year/{year}", h.YearView)
+	mux.HandleFunc("GET /album/{year}/{name}", h.Album)
 	mux.Handle("GET /media/", http.StripPrefix("/media/", http.FileServer(http.Dir("media"))))
 
 	addr := ":8080"
