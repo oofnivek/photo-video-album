@@ -265,10 +265,10 @@ func (h *Handler) Rotate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return a cache-busted <img> for HTMX to swap in.
-	newThumb := fmt.Sprintf("%s?t=%d", thumbURL(year, album, file), time.Now().UnixMilli())
+	newSrc := fmt.Sprintf("%s?t=%d", mediaPath(year, album, file), time.Now().UnixMilli())
 	fmt.Fprintf(w,
 		`<img src="%s" alt="%s" loading="lazy" style="object-fit: cover; width: 100%%; height: 100%%;">`,
-		newThumb, file,
+		newSrc, file,
 	)
 }
 
