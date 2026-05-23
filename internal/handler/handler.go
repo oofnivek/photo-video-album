@@ -181,13 +181,15 @@ func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		rURL := ""
+		tPath := thumbURL(year, name, n)
 		if kind == "image" {
 			rURL = rotateURL(year, name, n)
+			tPath = mediaPath(year, name, n)
 		}
 		files = append(files, MediaFile{
 			Name:      n,
 			Path:      mediaPath(year, name, n),
-			ThumbPath: thumbURL(year, name, n),
+			ThumbPath: tPath,
 			RotateURL: rURL,
 			Type:      kind,
 		})
@@ -202,11 +204,17 @@ func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Thumb serves a video or image thumbnail, generating it on first request.
+// Thumb serves a video thumbnail, generating it on first request.
+// Images are served directly and do not use this endpoint.
 func (h *Handler) Thumb(w http.ResponseWriter, r *http.Request) {
 	year := filepath.Base(r.PathValue("year"))
 	album := filepath.Base(r.PathValue("album"))
 	file := filepath.Base(r.PathValue("file"))
+
+	if mediaKind(strings.ToLower(filepath.Ext(file))) != "video" {
+		http.NotFound(w, r)
+		return
+	}
 
 	sourcePath := filepath.Join(h.mediaDir, year, album, file)
 	thumbPath := filepath.Join(h.cacheDir, "thumbnails", year, album, file+".jpg")
@@ -293,7 +301,7 @@ func (h *Handler) PreGenThumbnails() {
 				if f.IsDir() {
 					continue
 				}
-				if mediaKind(strings.ToLower(filepath.Ext(f.Name()))) == "" {
+				if mediaKind(strings.ToLower(filepath.Ext(f.Name()))) != "video" {
 					continue
 				}
 				sourcePath := filepath.Join(albumPath, f.Name())
@@ -394,7 +402,7 @@ func buildAlbum(mediaDir, year, name string) Album {
 		}
 		a.Count++
 		if a.ThumbPath == "" && kind == "image" {
-			a.ThumbPath = thumbURL(year, name, e.Name())
+			a.ThumbPath = mediaPath(year, name, e.Name())
 		}
 		if firstVideoThumb == "" && kind == "video" {
 			firstVideoThumb = thumbURL(year, name, e.Name())
