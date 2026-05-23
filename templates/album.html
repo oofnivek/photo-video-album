@@ -1,0 +1,41 @@
+{{ define "content" }}
+<nav class="breadcrumb mb-4" aria-label="breadcrumbs">
+  <ul>
+    <li><a href="/">Albums</a></li>
+    <li class="is-active"><a aria-current="page">{{ .AlbumName }}</a></li>
+  </ul>
+</nav>
+
+<div class="columns is-multiline">
+  {{ range .Files }}
+  <div class="column is-one-quarter-desktop is-one-third-tablet is-half-mobile">
+    <div class="card">
+      <div class="card-image">
+        {{ if eq .Type "image" }}
+        <figure class="image is-square">
+          <img src="{{ .Path }}" alt="{{ .Name }}" loading="lazy"
+               style="object-fit: cover; width: 100%; height: 100%;">
+        </figure>
+        {{ else }}
+        <figure class="image is-square" style="position: relative;">
+          <video controls preload="metadata"
+                 style="object-fit: cover; width: 100%; height: 100%; position: absolute; top: 0; left: 0;">
+            <source src="{{ .Path }}">
+          </video>
+        </figure>
+        {{ end }}
+      </div>
+      <div class="card-content p-2">
+        <p class="is-size-7 has-text-grey">{{ .Name }}</p>
+      </div>
+    </div>
+  </div>
+  {{ else }}
+  <div class="column">
+    <div class="notification is-warning is-light">
+      This album is empty. Add supported image or video files to this folder.
+    </div>
+  </div>
+  {{ end }}
+</div>
+{{ end }}
