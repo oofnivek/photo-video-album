@@ -2,6 +2,7 @@ package handler
 
 import (
 	"html/template"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -55,7 +56,7 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 
 	var albums []Album
 	for _, e := range entries {
-		if !e.IsDir() {
+		if !isDir(h.mediaDir, e) {
 			continue
 		}
 		album := buildAlbum(h.mediaDir, e.Name())
@@ -133,6 +134,15 @@ func buildAlbum(mediaDir, name string) Album {
 	}
 
 	return a
+}
+
+// isDir reports whether the entry is a directory, following symlinks.
+func isDir(parent string, e os.DirEntry) bool {
+	if e.Type()&fs.ModeSymlink == 0 {
+		return e.IsDir()
+	}
+	info, err := os.Stat(filepath.Join(parent, e.Name()))
+	return err == nil && info.IsDir()
 }
 
 func mediaKind(ext string) string {
