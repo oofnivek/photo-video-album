@@ -23,6 +23,7 @@ func main() {
 	mux.HandleFunc("GET /thumb/progress", h.ThumbProgress)
 	mux.HandleFunc("GET /thumb/{year}/{album}/{file}", h.Thumb)
 	mux.HandleFunc("POST /rotate/{year}/{album}/{file}", h.Rotate)
+	mux.HandleFunc("POST /delete/{year}/{album}/{file}", h.Delete)
 	mux.Handle("GET /media/", http.StripPrefix("/media/", http.FileServer(http.Dir("media"))))
 
 	addr := ":8080"

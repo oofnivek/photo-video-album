@@ -48,6 +48,7 @@ type MediaFile struct {
 	Path      string // actual media URL (used by lightbox)
 	ThumbPath string // thumbnail URL (/thumb/...)
 	RotateURL string // rotation endpoint; empty for videos
+	DeleteURL string // delete endpoint
 	Type      string // "image" or "video"
 }
 
@@ -199,6 +200,7 @@ func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
 			Path:      mediaPath(year, name, n),
 			ThumbPath: tPath,
 			RotateURL: rURL,
+			DeleteURL: deleteURL(year, name, n),
 			Type:      kind,
 		})
 	}
@@ -278,6 +280,36 @@ func (h *Handler) Rotate(w http.ResponseWriter, r *http.Request) {
 		`<img src="%s" alt="%s" loading="lazy" style="object-fit: cover; width: 100%%; height: 100%%;">`,
 		newSrc, file,
 	)
+}
+
+// Delete removes a media file from disk and its cached thumbnail, then returns
+// an empty response so HTMX removes the card from the DOM.
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	if !h.isWriteMode(r) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	year := filepath.Base(r.PathValue("year"))
+	album := filepath.Base(r.PathValue("album"))
+	file := filepath.Base(r.PathValue("file"))
+
+	filePath := filepath.Join(h.mediaDir, year, album, file)
+	log.Printf("delete: %s", filePath)
+
+	if err := os.Remove(filePath); err != nil {
+		log.Printf("delete: failed to remove %s: %v", filePath, err)
+		http.Error(w, "delete failed", http.StatusInternalServerError)
+		return
+	}
+
+	thumbPath := filepath.Join(h.cacheDir, "thumbnails", year, album, file+".jpg")
+	if err := os.Remove(thumbPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("delete: failed to remove cached thumbnail %s: %v", thumbPath, err)
+	}
+
+	log.Printf("delete: done %s", filePath)
+	w.WriteHeader(http.StatusOK)
 }
 
 type thumbJob struct {
@@ -506,6 +538,10 @@ func thumbURL(year, album, file string) string {
 
 func rotateURL(year, album, file string) string {
 	return "/rotate/" + url.PathEscape(year) + "/" + url.PathEscape(album) + "/" + url.PathEscape(file)
+}
+
+func deleteURL(year, album, file string) string {
+	return "/delete/" + url.PathEscape(year) + "/" + url.PathEscape(album) + "/" + url.PathEscape(file)
 }
 
 // isDir reports whether the entry is a directory, following symlinks.
