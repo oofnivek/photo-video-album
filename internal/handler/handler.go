@@ -2,7 +2,6 @@ package handler
 
 import (
 	"html/template"
-	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -194,9 +193,11 @@ func mediaPath(year, album, file string) string {
 }
 
 // isDir reports whether the entry is a directory, following symlinks.
+// os.Stat is used as a fallback to handle symlinks and filesystems that
+// don't report entry types (FAT32, exFAT, some network mounts).
 func isDir(parent string, e os.DirEntry) bool {
-	if e.Type()&fs.ModeSymlink == 0 {
-		return e.IsDir()
+	if e.IsDir() {
+		return true
 	}
 	info, err := os.Stat(filepath.Join(parent, e.Name()))
 	return err == nil && info.IsDir()
