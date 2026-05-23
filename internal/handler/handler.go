@@ -96,11 +96,25 @@ func (h *Handler) maybeSetWriteCookie(w http.ResponseWriter, r *http.Request) {
 	if h.writeKey == "" {
 		return
 	}
-	if r.URL.Query().Get("key") == h.writeKey {
+	key := r.URL.Query().Get("key")
+	if key == "" {
+		return
+	}
+	if key == h.writeKey {
 		http.SetCookie(w, &http.Cookie{
 			Name:     "write_access",
 			Value:    h.writeKey,
 			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+		})
+	} else {
+		// Wrong key — clear the cookie to exit write mode.
+		http.SetCookie(w, &http.Cookie{
+			Name:     "write_access",
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
 			HttpOnly: true,
 			SameSite: http.SameSiteStrictMode,
 		})
