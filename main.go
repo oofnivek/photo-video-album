@@ -22,7 +22,11 @@ func main() {
 	mux.HandleFunc("GET /album/{year}/{name}", h.Album)
 	mux.HandleFunc("GET /thumb/{year}/{album}/{file}", h.Thumb)
 	mux.HandleFunc("POST /rotate/{year}/{album}/{file}", h.Rotate)
-	mux.Handle("GET /media/", http.StripPrefix("/media/", http.FileServer(http.Dir("media"))))
+	mediaHandler := http.StripPrefix("/media/", http.FileServer(http.Dir("media")))
+	mux.Handle("GET /media/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		mediaHandler.ServeHTTP(w, r)
+	}))
 
 	addr := ":8080"
 	log.Printf("listening on http://localhost%s", addr)
