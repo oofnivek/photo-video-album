@@ -5,6 +5,7 @@ A simple local photo and video album viewer. Drop media files into the `media/` 
 ## Requirements
 
 - [Go](https://go.dev/dl/) 1.22 or later
+- [ffmpeg](https://ffmpeg.org/download.html) — for video thumbnail generation
 
 ## Getting started
 
@@ -52,6 +53,26 @@ The home page lists years → clicking a year shows its albums → clicking an a
 | `make build` | Build a binary to `bin/app`     |
 | `make tidy`  | Tidy Go module dependencies     |
 
+## Thumbnail cache
+
+Video thumbnails are generated into `cache/thumbnails/`, mirroring the `media/` path structure:
+
+```
+cache/
+└── thumbnails/
+    └── 2026/
+        └── 2026-12-25 Skiing in Switzerland/
+            └── highlight.jpg   ← generated from highlight.mp4
+```
+
+To regenerate all thumbnails, delete the folder contents:
+
+```bash
+rm -rf cache/thumbnails && mkdir -p cache/thumbnails
+```
+
+The `cache/` directory is excluded from git.
+
 ## Project structure
 
 ```
@@ -62,6 +83,10 @@ The home page lists years → clicking a year shows its albums → clicking an a
 │       └── handler.go       HTTP handlers
 ├── templates/
 │   ├── base.html            Page layout (Bulma + HTMX)
-│   └── index.html           Media grid
-└── media/                   Put your photos and videos here
+│   ├── index.html           Year listing
+│   ├── year.html            Album listing
+│   └── album.html           Media grid with lightbox
+├── media/                   Source photos and videos (gitignored)
+└── cache/
+    └── thumbnails/          Generated video thumbnails (gitignored)
 ```

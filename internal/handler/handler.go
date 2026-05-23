@@ -2,9 +2,11 @@ package handler
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -13,13 +15,14 @@ import (
 type Handler struct {
 	mediaDir    string
 	templateDir string
+	cacheDir    string
 }
 
 type Year struct {
 	Name       string
 	URLName    string
 	AlbumCount int
-	ThumbPath  string // first image found across albums
+	ThumbPath  string
 }
 
 type Album struct {
@@ -32,13 +35,14 @@ type Album struct {
 }
 
 type MediaFile struct {
-	Name string
-	Path string
-	Type string // "image" or "video"
+	Name      string
+	Path      string // actual media URL (used by lightbox)
+	ThumbPath string // thumbnail URL (image: same as Path, video: /thumb/...)
+	Type      string // "image" or "video"
 }
 
-func New(mediaDir, templateDir string) *Handler {
-	return &Handler{mediaDir: mediaDir, templateDir: templateDir}
+func New(mediaDir, templateDir, cacheDir string) *Handler {
+	return &Handler{mediaDir: mediaDir, templateDir: templateDir, cacheDir: cacheDir}
 }
 
 func (h *Handler) render(w http.ResponseWriter, page string, data any) {
@@ -70,7 +74,7 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		}
 		years = append(years, buildYear(h.mediaDir, e.Name()))
 	}
-	slices.Reverse(years) // newest year first
+	slices.Reverse(years)
 
 	h.render(w, "index", map[string]any{"Years": years})
 }
@@ -125,10 +129,16 @@ func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
 		if kind == "" {
 			continue
 		}
+		mp := mediaPath(year, name, n)
+		tp := mp
+		if kind == "video" {
+			tp = thumbURL(year, name, n)
+		}
 		files = append(files, MediaFile{
-			Name: n,
-			Path: mediaPath(year, name, n),
-			Type: kind,
+			Name:      n,
+			Path:      mp,
+			ThumbPath: tp,
+			Type:      kind,
 		})
 	}
 
@@ -138,6 +148,43 @@ func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
 		"AlbumName": name,
 		"Files":     files,
 	})
+}
+
+// Thumb serves a video thumbnail, generating it on first request.
+func (h *Handler) Thumb(w http.ResponseWriter, r *http.Request) {
+	year := filepath.Base(r.PathValue("year"))
+	album := filepath.Base(r.PathValue("album"))
+	file := filepath.Base(r.PathValue("file"))
+
+	videoPath := filepath.Join(h.mediaDir, year, album, file)
+	thumbPath := filepath.Join(h.cacheDir, "thumbnails", year, album, file+".jpg")
+
+	if _, err := os.Stat(thumbPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(filepath.Dir(thumbPath), 0755); err != nil {
+			http.Error(w, "cache directory error", http.StatusInternalServerError)
+			return
+		}
+		if err := generateThumb(videoPath, thumbPath); err != nil {
+			log.Printf("thumb generation failed for %s: %v", videoPath, err)
+			http.NotFound(w, r)
+			return
+		}
+	}
+
+	http.ServeFile(w, r, thumbPath)
+}
+
+func generateThumb(videoPath, thumbPath string) error {
+	cmd := exec.Command("ffmpeg",
+		"-i", videoPath,
+		"-ss", "00:00:01",
+		"-vframes", "1",
+		"-vf", "scale=480:-1",
+		"-q:v", "4",
+		"-y",
+		thumbPath,
+	)
+	return cmd.Run()
 }
 
 func buildYear(mediaDir, name string) Year {
@@ -173,23 +220,37 @@ func buildAlbum(mediaDir, year, name string) Album {
 	if err != nil {
 		return a
 	}
+
+	var firstVideoThumb string
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
 		ext := strings.ToLower(filepath.Ext(e.Name()))
-		if mediaKind(ext) != "" {
-			a.Count++
+		kind := mediaKind(ext)
+		if kind == "" {
+			continue
 		}
-		if a.ThumbPath == "" && mediaKind(ext) == "image" {
+		a.Count++
+		if a.ThumbPath == "" && kind == "image" {
 			a.ThumbPath = mediaPath(year, name, e.Name())
 		}
+		if firstVideoThumb == "" && kind == "video" {
+			firstVideoThumb = thumbURL(year, name, e.Name())
+		}
+	}
+	if a.ThumbPath == "" {
+		a.ThumbPath = firstVideoThumb
 	}
 	return a
 }
 
 func mediaPath(year, album, file string) string {
 	return "/media/" + url.PathEscape(year) + "/" + url.PathEscape(album) + "/" + url.PathEscape(file)
+}
+
+func thumbURL(year, album, file string) string {
+	return "/thumb/" + url.PathEscape(year) + "/" + url.PathEscape(album) + "/" + url.PathEscape(file)
 }
 
 // isDir reports whether the entry is a directory, following symlinks.

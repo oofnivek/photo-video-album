@@ -7,12 +7,13 @@ import (
 )
 
 func main() {
-	h := handler.New("media", "templates")
+	h := handler.New("media", "templates", "cache")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", h.Index)
 	mux.HandleFunc("GET /year/{year}", h.YearView)
 	mux.HandleFunc("GET /album/{year}/{name}", h.Album)
+	mux.HandleFunc("GET /thumb/{year}/{album}/{file}", h.Thumb)
 	mux.Handle("GET /media/", http.StripPrefix("/media/", http.FileServer(http.Dir("media"))))
 
 	addr := ":8080"

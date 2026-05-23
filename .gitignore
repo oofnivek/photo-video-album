@@ -5,3 +5,7 @@ bin/
 # keep the media dir but not its contents
 media/*
 !media/.gitkeep
+
+# generated thumbnail cache
+cache/thumbnails/**
+!cache/thumbnails/.gitkeep

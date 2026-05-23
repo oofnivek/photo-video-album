@@ -12,24 +12,17 @@
   <div class="column is-one-quarter-desktop is-one-third-tablet is-half-mobile">
     <div class="card" style="cursor: pointer;" onclick="lbOpen({{ $i }})">
       <div class="card-image">
-        {{ if eq $f.Type "image" }}
-        <figure class="image is-square">
-          <img src="{{ $f.Path }}" alt="{{ $f.Name }}" loading="lazy"
+        <figure class="image is-square" style="position: relative; background: #111;">
+          <img src="{{ $f.ThumbPath }}" alt="{{ $f.Name }}" loading="lazy"
                style="object-fit: cover; width: 100%; height: 100%;">
-        </figure>
-        {{ else }}
-        <figure class="image is-square" style="position: relative; background: #000;">
+          {{ if eq $f.Type "video" }}
           <span style="position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none;">
             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="white" opacity="0.85">
               <path d="M8 5v14l11-7z"/>
             </svg>
           </span>
-          <video preload="metadata" muted
-                 style="object-fit: cover; width: 100%; height: 100%; position: absolute; top: 0; left: 0;">
-            <source src="{{ $f.Path }}">
-          </video>
+          {{ end }}
         </figure>
-        {{ end }}
       </div>
       <div class="card-content p-2">
         <p class="is-size-7 has-text-grey">{{ $f.Name }}</p>
