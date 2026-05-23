@@ -1,11 +1,27 @@
 # Photo & Video Album
 
-A simple local photo and video album viewer. Drop media files into the `media/` folder and browse them in your browser.
+A simple local photo and video album viewer. Designed for **Linux and macOS only** — not supported on Windows.
 
 ## Requirements
 
 - [Go](https://go.dev/dl/) 1.22 or later
 - [ffmpeg](https://ffmpeg.org/download.html) — for video thumbnail generation
+
+Install ffmpeg if not already present:
+
+```bash
+# Ubuntu / Debian
+sudo apt install ffmpeg
+
+# macOS
+brew install ffmpeg
+```
+
+Verify the installation:
+
+```bash
+ffmpeg -version
+```
 
 ## Getting started
 

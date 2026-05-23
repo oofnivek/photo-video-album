@@ -130,10 +130,7 @@ func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		mp := mediaPath(year, name, n)
-		tp := mp
-		if kind == "video" {
-			tp = thumbURL(year, name, n)
-		}
+		tp := thumbURL(year, name, n)
 		files = append(files, MediaFile{
 			Name:      n,
 			Path:      mp,
@@ -156,7 +153,7 @@ func (h *Handler) Thumb(w http.ResponseWriter, r *http.Request) {
 	album := filepath.Base(r.PathValue("album"))
 	file := filepath.Base(r.PathValue("file"))
 
-	videoPath := filepath.Join(h.mediaDir, year, album, file)
+	sourcePath := filepath.Join(h.mediaDir, year, album, file)
 	thumbPath := filepath.Join(h.cacheDir, "thumbnails", year, album, file+".jpg")
 
 	if _, err := os.Stat(thumbPath); os.IsNotExist(err) {
@@ -164,8 +161,8 @@ func (h *Handler) Thumb(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "cache directory error", http.StatusInternalServerError)
 			return
 		}
-		if err := generateThumb(videoPath, thumbPath); err != nil {
-			log.Printf("thumb generation failed for %s: %v", videoPath, err)
+		if err := generateThumb(sourcePath, thumbPath); err != nil {
+			log.Printf("thumb generation failed for %s: %v", sourcePath, err)
 			http.NotFound(w, r)
 			return
 		}
@@ -233,7 +230,7 @@ func buildAlbum(mediaDir, year, name string) Album {
 		}
 		a.Count++
 		if a.ThumbPath == "" && kind == "image" {
-			a.ThumbPath = mediaPath(year, name, e.Name())
+			a.ThumbPath = thumbURL(year, name, e.Name())
 		}
 		if firstVideoThumb == "" && kind == "video" {
 			firstVideoThumb = thumbURL(year, name, e.Name())
