@@ -184,7 +184,6 @@ func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
 		tPath := thumbURL(year, name, n)
 		if kind == "image" {
 			rURL = rotateURL(year, name, n)
-			tPath = mediaPath(year, name, n)
 			if info, err := e.Info(); err == nil {
 				tPath = fmt.Sprintf("%s?t=%d", tPath, info.ModTime().Unix())
 			}
@@ -207,14 +206,14 @@ func (h *Handler) Album(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Thumb serves a video thumbnail, generating it on first request.
-// Images are served directly and do not use this endpoint.
+// Thumb serves a thumbnail for images and videos, generating it on first request.
 func (h *Handler) Thumb(w http.ResponseWriter, r *http.Request) {
 	year := filepath.Base(r.PathValue("year"))
 	album := filepath.Base(r.PathValue("album"))
 	file := filepath.Base(r.PathValue("file"))
 
-	if mediaKind(strings.ToLower(filepath.Ext(file))) != "video" {
+	kind := mediaKind(strings.ToLower(filepath.Ext(file)))
+	if kind == "" {
 		http.NotFound(w, r)
 		return
 	}
@@ -228,7 +227,7 @@ func (h *Handler) Thumb(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("generating thumbnail: %s", sourcePath)
-		if err := generateThumb(sourcePath, thumbPath); err != nil {
+		if err := generateThumb(sourcePath, thumbPath, kind); err != nil {
 			log.Printf("thumb generation failed for %s: %v", sourcePath, err)
 			http.NotFound(w, r)
 			return
@@ -268,7 +267,7 @@ func (h *Handler) Rotate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return a cache-busted <img> for HTMX to swap in.
-	newSrc := fmt.Sprintf("%s?t=%d", mediaPath(year, album, file), time.Now().UnixMilli())
+	newSrc := fmt.Sprintf("%s?t=%d", thumbURL(year, album, file), time.Now().UnixMilli())
 	fmt.Fprintf(w,
 		`<img src="%s" alt="%s" loading="lazy" style="object-fit: cover; width: 100%%; height: 100%%;">`,
 		newSrc, file,
@@ -308,7 +307,8 @@ func (h *Handler) PreGenThumbnails() {
 				if f.IsDir() {
 					continue
 				}
-				if mediaKind(strings.ToLower(filepath.Ext(f.Name()))) != "video" {
+				kind := mediaKind(strings.ToLower(filepath.Ext(f.Name())))
+				if kind == "" {
 					continue
 				}
 				sourcePath := filepath.Join(albumPath, f.Name())
@@ -321,7 +321,7 @@ func (h *Handler) PreGenThumbnails() {
 					continue
 				}
 				log.Printf("generating thumbnail: %s", sourcePath)
-				if err := generateThumb(sourcePath, thumbPath); err != nil {
+				if err := generateThumb(sourcePath, thumbPath, kind); err != nil {
 					log.Printf("pregen: thumb generation failed for %s: %v", sourcePath, err)
 				}
 			}
@@ -330,17 +330,17 @@ func (h *Handler) PreGenThumbnails() {
 	log.Println("pregen: all thumbnails up to date")
 }
 
-func generateThumb(sourcePath, thumbPath string) error {
-	cmd := exec.Command("ffmpeg",
-		"-i", sourcePath,
-		"-ss", "00:00:01",
-		"-vframes", "1",
-		"-vf", "scale=480:-1",
-		"-q:v", "4",
-		"-y",
-		thumbPath,
-	)
-	return cmd.Run()
+func generateThumb(sourcePath, thumbPath, kind string) error {
+	args := []string{"-i", sourcePath}
+	if kind == "video" {
+		args = append(args, "-ss", "00:00:01", "-vframes", "1")
+	}
+	args = append(args, "-vf", "scale=480:-1", "-q:v", "4", "-y", thumbPath)
+	cmd := exec.Command("ffmpeg", args...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("%w\nffmpeg output:\n%s", err, out)
+	}
+	return nil
 }
 
 func rotateImage(filePath, dir string) error {
@@ -413,7 +413,7 @@ func buildAlbum(mediaDir, year, name string) Album {
 		}
 		a.Count++
 		if a.ThumbPath == "" && kind == "image" {
-			p := mediaPath(year, name, e.Name())
+			p := thumbURL(year, name, e.Name())
 			if info, err := e.Info(); err == nil {
 				p = fmt.Sprintf("%s?t=%d", p, info.ModTime().Unix())
 			}
