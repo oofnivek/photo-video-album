@@ -413,7 +413,11 @@ func buildAlbum(mediaDir, year, name string) Album {
 		}
 		a.Count++
 		if a.ThumbPath == "" && kind == "image" {
-			a.ThumbPath = mediaPath(year, name, e.Name())
+			p := mediaPath(year, name, e.Name())
+			if info, err := e.Info(); err == nil {
+				p = fmt.Sprintf("%s?t=%d", p, info.ModTime().Unix())
+			}
+			a.ThumbPath = p
 		}
 		if firstVideoThumb == "" && kind == "video" {
 			firstVideoThumb = thumbURL(year, name, e.Name())
