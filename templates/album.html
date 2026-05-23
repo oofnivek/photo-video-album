@@ -1,4 +1,5 @@
 {{ define "content" }}
+<style>@keyframes rot-spin { to { transform: rotate(360deg); } }</style>
 <nav class="breadcrumb mb-4" aria-label="breadcrumbs">
   <ul>
     <li><a href="/">Years</a></li>
@@ -28,6 +29,16 @@
             </svg>
           </span>
           {{ end }}
+          {{ if and $.WriteMode (eq $f.Type "image") }}
+          <div id="rot-spinner-{{ $i }}" class="htmx-indicator"
+               style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); pointer-events: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
+              <circle cx="22" cy="22" r="18" fill="none" stroke="white" stroke-width="4"
+                      stroke-dasharray="28 84" stroke-linecap="round"
+                      style="animation: rot-spin 0.8s linear infinite; transform-origin: 22px 22px;"/>
+            </svg>
+          </div>
+          {{ end }}
         </figure>
       </div>
       <div class="card-content p-2" style="display: flex; align-items: center; justify-content: space-between;">
@@ -37,7 +48,8 @@
           <button class="button is-light" title="Rotate counter-clockwise"
                   hx-post="{{ $f.RotateURL }}?dir=ccw"
                   hx-target="#fig-{{ $i }}"
-                  hx-swap="innerHTML">
+                  hx-swap="innerHTML"
+                  hx-indicator="#rot-spinner-{{ $i }}">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
               <path d="M7.11 8.53L5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.45 13 9.93V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93S16.95 4.56 13 4.07z"/>
             </svg>
@@ -45,7 +57,8 @@
           <button class="button is-light" title="Rotate clockwise"
                   hx-post="{{ $f.RotateURL }}?dir=cw"
                   hx-target="#fig-{{ $i }}"
-                  hx-swap="innerHTML">
+                  hx-swap="innerHTML"
+                  hx-indicator="#rot-spinner-{{ $i }}">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
               <path d="M15.55 5.55L11 1v3.07C7.06 4.56 4 7.92 4 12s3.05 7.44 7 7.93v-2.02c-2.84-.48-5-2.94-5-5.91s2.16-5.43 5-5.91V10l4.55-4.45zM19.93 11c-.17-1.39-.72-2.73-1.62-3.89l-1.42 1.42c.54.75.88 1.6 1.02 2.47h2.02zM13 17.9v2.02c1.39-.17 2.74-.71 3.9-1.61l-1.44-1.44c-.75.54-1.59.89-2.46 1.03zm3.89-2.42l1.42 1.41c.9-1.16 1.45-2.5 1.62-3.89h-2.02c-.14.87-.48 1.72-1.02 2.48z"/>
             </svg>
@@ -143,6 +156,33 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape")      lbClose();
   if (e.key === "ArrowLeft")   lbPrev();
   if (e.key === "ArrowRight")  lbNext();
+});
+
+// Rotate logging
+document.addEventListener("htmx:beforeRequest", e => {
+  const url = e.detail.requestConfig?.path || e.detail.pathInfo?.requestPath || "";
+  if (!url.includes("/rotate/")) return;
+  console.log("[rotate] request start", { url, triggerEl: e.detail.elt });
+});
+document.addEventListener("htmx:afterRequest", e => {
+  const url = e.detail.requestConfig?.path || e.detail.pathInfo?.requestPath || "";
+  if (!url.includes("/rotate/")) return;
+  const xhr = e.detail.xhr;
+  console.log("[rotate] response", { status: xhr.status, ok: e.detail.successful, responseLength: xhr.responseText.length });
+  if (!e.detail.successful) {
+    console.error("[rotate] server error", xhr.status, xhr.responseText);
+  }
+});
+document.addEventListener("htmx:afterSettle", e => {
+  const url = e.detail.requestConfig?.path || e.detail.pathInfo?.requestPath || "";
+  if (!url.includes("/rotate/")) return;
+  const img = e.detail.target?.querySelector("img");
+  console.log("[rotate] DOM settled", { target: e.detail.target?.id, newImgSrc: img?.src });
+});
+document.addEventListener("htmx:sendError", e => {
+  const url = e.detail.requestConfig?.path || e.detail.pathInfo?.requestPath || "";
+  if (!url.includes("/rotate/")) return;
+  console.error("[rotate] network error (request never reached server)", e.detail);
 });
 </script>
 {{ end }}
