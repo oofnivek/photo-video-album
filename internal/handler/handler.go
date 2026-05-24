@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"log"
@@ -14,6 +15,8 @@ import (
 	"sync"
 	"time"
 )
+
+var errNoVideoStream = errors.New("no video stream")
 
 type Handler struct {
 	mediaDir    string
@@ -247,13 +250,22 @@ func (h *Handler) Thumb(w http.ResponseWriter, r *http.Request) {
 	thumbPath := filepath.Join(h.cacheDir, "thumbnails", year, album, file+".jpg")
 
 	if _, err := os.Stat(thumbPath); os.IsNotExist(err) {
+		if _, err := os.Stat(thumbPath + ".skip"); err == nil {
+			http.NotFound(w, r)
+			return
+		}
 		if err := os.MkdirAll(filepath.Dir(thumbPath), 0755); err != nil {
 			http.Error(w, "cache directory error", http.StatusInternalServerError)
 			return
 		}
 		log.Printf("generating thumbnail: %s", sourcePath)
 		if err := generateThumb(sourcePath, thumbPath, kind); err != nil {
-			log.Printf("thumb generation failed for %s: %v", sourcePath, err)
+			if errors.Is(err, errNoVideoStream) {
+				log.Printf("thumb: skipping audio-only file %s", sourcePath)
+				os.WriteFile(thumbPath+".skip", nil, 0644)
+			} else {
+				log.Printf("thumb generation failed for %s: %v", sourcePath, err)
+			}
 			http.NotFound(w, r)
 			return
 		}
@@ -353,7 +365,12 @@ func (h *Handler) PreGenThumbnails() {
 	for _, j := range jobs {
 		log.Printf("generating thumbnail: %s", j.src)
 		if err := generateThumb(j.src, j.thumb, j.kind); err != nil {
-			log.Printf("pregen: thumb generation failed for %s: %v", j.src, err)
+			if errors.Is(err, errNoVideoStream) {
+				log.Printf("pregen: skipping audio-only file %s (no video stream)", j.src)
+				os.WriteFile(j.thumb+".skip", nil, 0644)
+			} else {
+				log.Printf("pregen: thumb generation failed for %s: %v", j.src, err)
+			}
 		}
 		h.thumbMu.Lock()
 		h.thumbDone++
@@ -407,6 +424,9 @@ func (h *Handler) collectMissingThumbs() []thumbJob {
 				if _, err := os.Stat(thumb); err == nil {
 					continue
 				}
+				if _, err := os.Stat(thumb + ".skip"); err == nil {
+					continue
+				}
 				if err := os.MkdirAll(filepath.Dir(thumb), 0755); err != nil {
 					log.Printf("pregen: mkdir failed: %v", err)
 					continue
@@ -453,7 +473,11 @@ func generateThumb(sourcePath, thumbPath, kind string) error {
 	}
 	args = append(args, "-vf", "scale=480:-1", "-q:v", "4", "-y", thumbPath)
 	cmd := exec.Command("ffmpeg", args...)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if strings.Contains(string(out), "does not contain any stream") {
+			return errNoVideoStream
+		}
 		return fmt.Errorf("%w\nffmpeg output:\n%s", err, out)
 	}
 	return nil
