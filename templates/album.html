@@ -14,9 +14,9 @@
 </div>
 {{ end }}
 
-<div class="columns is-multiline">
+<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(clamp(160px, 45vw, 220px), 1fr)); gap: 1rem;">
   {{ range $i, $f := .Files }}
-  <div id="card-{{ $i }}" class="column is-2-fullhd is-one-fifth-widescreen is-one-quarter-desktop is-one-third-tablet is-half-mobile">
+  <div id="card-{{ $i }}">
     <div class="card">
       <div class="card-image" style="cursor: pointer;" onclick="lbOpen({{ $i }})">
         <figure id="fig-{{ $i }}" class="image is-square" style="position: relative; background: #111;">
