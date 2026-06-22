@@ -6,12 +6,13 @@ A simple local photo and video album viewer. Designed for **Linux and macOS only
 
 - [Go](https://go.dev/dl/) 1.22 or later
 - [ffmpeg](https://ffmpeg.org/download.html) — for video thumbnail generation
+- `make`
 
-Install ffmpeg if not already present:
+Install dependencies if not already present:
 
 ```bash
 # Ubuntu / Debian
-sudo apt install ffmpeg
+sudo apt install make ffmpeg
 
 # macOS
 brew install ffmpeg
