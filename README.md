@@ -13,9 +13,10 @@ Install dependencies if not already present:
 ```bash
 # Ubuntu / Debian
 sudo apt install make ffmpeg
+sudo snap install go --classic
 
 # macOS
-brew install ffmpeg
+brew install go ffmpeg
 ```
 
 Verify the installation:
