@@ -93,15 +93,15 @@
   <div class="modal-background" onclick="lbClose()"></div>
 
   <div style="position: relative; display: flex; flex-direction: column; align-items: center;
-              max-width: 92vw; max-height: 92vh; margin: auto;">
+              max-width: 98vw; max-height: 98vh; margin: auto;">
     <div id="lb-media" style="display: flex; align-items: center; justify-content: center;
-                               max-width: 92vw; max-height: 80vh;"></div>
-    <div style="margin-top: 0.75rem; display: flex; align-items: center; gap: 1rem;">
+                               max-width: 98vw; max-height: calc(100vh - 5rem);"></div>
+    <div style="margin-top: 0.4rem; display: flex; align-items: center; gap: 1rem;">
       <button class="button is-dark is-small" id="lb-prev" onclick="lbPrev()">&#8592;</button>
       <span id="lb-counter" class="has-text-white is-size-7"></span>
       <button class="button is-dark is-small" id="lb-next" onclick="lbNext()">&#8594;</button>
     </div>
-    <p id="lb-caption" class="has-text-white is-size-7 mt-2"
+    <p id="lb-caption" class="has-text-white is-size-7 mt-1"
        style="max-width: 80vw; text-align: center; word-break: break-all;"></p>
   </div>
 
@@ -146,11 +146,11 @@ function lbRender() {
 
   if (item.type === "image") {
     container.innerHTML =
-      `<img src="${item.src}" style="max-width:92vw; max-height:80vh; object-fit:contain; display:block;">`;
+      `<img src="${item.src}" style="max-width:98vw; max-height:calc(100vh - 5rem); object-fit:contain; display:block;">`;
   } else {
     container.innerHTML =
       `<video src="${item.src}" controls autoplay
-              style="max-width:92vw; max-height:80vh;"></video>`;
+              style="max-width:98vw; max-height:calc(100vh - 5rem);"></video>`;
   }
 
   document.getElementById("lb-caption").textContent = item.name;
