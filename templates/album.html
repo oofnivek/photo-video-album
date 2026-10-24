@@ -107,6 +107,9 @@
   <button class="button is-dark" id="lb-next" onclick="lbNext()"
           style="position: fixed; top: 50%; right: 0.5rem; transform: translateY(-50%); z-index: 2; opacity: 0.6;">&#8594;</button>
 
+  <input class="input is-small" id="lb-seconds" type="number" min="1" step="1" value="5"
+         title="Slideshow delay (seconds)" onchange="lbSecondsChanged()"
+         style="position: fixed; top: 21px; right: 104px; width: 4rem; z-index: 2; opacity: 0.8;">
   <button class="button is-dark is-rounded" id="lb-play" onclick="lbToggleSlideshow()" aria-label="slideshow"
           style="position: fixed; top: 20px; right: 64px; width: 32px; height: 32px; padding: 0; z-index: 2; opacity: 0.6;">&#9654;</button>
 
@@ -120,7 +123,7 @@ const lbItems = [
   {{ end }}
 ];
 
-const SLIDESHOW_SECONDS = 5;
+const SLIDESHOW_DEFAULT_SECONDS = 5;
 
 let lbCurrent = 0;
 let lbPlaying = false;
@@ -162,19 +165,40 @@ function lbToggleSlideshow() {
 
 function lbStopSlideshow() {
   lbPlaying = false;
-  clearTimeout(lbTimer);
+  lbCancelNext();
   document.getElementById("lb-play").innerHTML = "&#9654;";
 }
 
-// Images advance after SLIDESHOW_SECONDS; videos advance when they finish playing.
-function lbScheduleNext() {
+function lbCancelNext() {
   clearTimeout(lbTimer);
+  const video = document.querySelector("#lb-media video");
+  if (video) video.removeEventListener("ended", lbNext);
+}
+
+function lbSeconds() {
+  const n = parseFloat(document.getElementById("lb-seconds").value);
+  return n > 0 ? n : SLIDESHOW_DEFAULT_SECONDS;
+}
+
+function lbSecondsChanged() {
+  try { localStorage.setItem("lbSeconds", lbSeconds()); } catch (e) {}
+  lbScheduleNext();
+}
+
+try {
+  const saved = localStorage.getItem("lbSeconds");
+  if (saved) document.getElementById("lb-seconds").value = saved;
+} catch (e) {}
+
+// Images advance after the configured delay; videos advance when they finish playing.
+function lbScheduleNext() {
+  lbCancelNext();
   if (!lbPlaying) return;
   const video = document.querySelector("#lb-media video");
   if (video) {
-    video.addEventListener("ended", lbNext, { once: true });
+    video.addEventListener("ended", lbNext);
   } else {
-    lbTimer = setTimeout(lbNext, SLIDESHOW_SECONDS * 1000);
+    lbTimer = setTimeout(lbNext, lbSeconds() * 1000);
   }
 }
 
@@ -199,12 +223,14 @@ function lbRender() {
   document.getElementById("lb-prev").style.display = single ? "none" : "";
   document.getElementById("lb-next").style.display = single ? "none" : "";
   document.getElementById("lb-play").style.display = single ? "none" : "";
+  document.getElementById("lb-seconds").style.display = single ? "none" : "";
 
   lbScheduleNext();
 }
 
 document.addEventListener("keydown", e => {
   if (!document.getElementById("lightbox").classList.contains("is-active")) return;
+  if (e.target.id === "lb-seconds" && e.key !== "Escape") return;
   if (e.key === "Escape")      lbClose();
   if (e.key === "ArrowLeft")   lbPrev();
   if (e.key === "ArrowRight")  lbNext();
