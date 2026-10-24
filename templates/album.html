@@ -107,9 +107,9 @@
   <button class="button is-dark" id="lb-next" onclick="lbNext()"
           style="position: fixed; top: 50%; right: 0.5rem; transform: translateY(-50%); z-index: 2; opacity: 0.6;">&#8594;</button>
 
-  <input class="input is-small" id="lb-seconds" type="number" min="1" step="1" value="5"
+  <input class="input is-small" id="lb-seconds" type="number" min="1" step="1" value="3"
          title="Slideshow delay (seconds)" onchange="lbSecondsChanged()"
-         style="position: fixed; top: 21px; right: 104px; width: 4rem; z-index: 2; opacity: 0.8;">
+         style="position: fixed; top: 21px; right: 104px; width: 2.75rem; padding: 0 0.3rem; text-align: center; z-index: 2; opacity: 0.8;">
   <button class="button is-dark is-rounded" id="lb-play" onclick="lbToggleSlideshow()" aria-label="slideshow"
           style="position: fixed; top: 20px; right: 64px; width: 32px; height: 32px; padding: 0; z-index: 2; opacity: 0.6;">&#9654;</button>
 
@@ -123,7 +123,7 @@ const lbItems = [
   {{ end }}
 ];
 
-const SLIDESHOW_DEFAULT_SECONDS = 5;
+const SLIDESHOW_DEFAULT_SECONDS = 3;
 
 let lbCurrent = 0;
 let lbPlaying = false;
