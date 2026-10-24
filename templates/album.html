@@ -94,19 +94,18 @@
 
   <div style="position: relative; display: flex; flex-direction: column; align-items: center;
               max-width: 98vw; max-height: 98vh; margin: auto;">
-    <div style="position: relative;">
-      <div id="lb-media" style="display: flex; align-items: center; justify-content: center;
-                                 max-width: 98vw; max-height: calc(100vh - 3rem);"></div>
-      <button class="button is-dark" id="lb-prev" onclick="lbPrev()"
-              style="position: absolute; top: 50%; left: 0.5rem; transform: translateY(-50%); opacity: 0.6;">&#8592;</button>
-      <button class="button is-dark" id="lb-next" onclick="lbNext()"
-              style="position: absolute; top: 50%; right: 0.5rem; transform: translateY(-50%); opacity: 0.6;">&#8594;</button>
-    </div>
+    <div id="lb-media" style="display: flex; align-items: center; justify-content: center;
+                               max-width: 98vw; max-height: calc(100vh - 3rem);"></div>
     <p class="has-text-white is-size-7 mt-1"
        style="max-width: 80vw; text-align: center; word-break: break-all;">
       <span id="lb-counter"></span> <span id="lb-caption"></span>
     </p>
   </div>
+
+  <button class="button is-dark" id="lb-prev" onclick="lbPrev()"
+          style="position: fixed; top: 50%; left: 0.5rem; transform: translateY(-50%); z-index: 2; opacity: 0.6;">&#8592;</button>
+  <button class="button is-dark" id="lb-next" onclick="lbNext()"
+          style="position: fixed; top: 50%; right: 0.5rem; transform: translateY(-50%); z-index: 2; opacity: 0.6;">&#8594;</button>
 
   <button class="modal-close is-large" aria-label="close" onclick="lbClose()"></button>
 </div>
