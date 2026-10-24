@@ -107,6 +107,9 @@
   <button class="button is-dark" id="lb-next" onclick="lbNext()"
           style="position: fixed; top: 50%; right: 0.5rem; transform: translateY(-50%); z-index: 2; opacity: 0.6;">&#8594;</button>
 
+  <button class="button is-dark is-rounded" id="lb-play" onclick="lbToggleSlideshow()" aria-label="slideshow"
+          style="position: fixed; top: 20px; right: 64px; width: 32px; height: 32px; padding: 0; z-index: 2; opacity: 0.6;">&#9654;</button>
+
   <button class="modal-close is-large" aria-label="close" onclick="lbClose()"></button>
 </div>
 
@@ -117,7 +120,11 @@ const lbItems = [
   {{ end }}
 ];
 
+const SLIDESHOW_SECONDS = 5;
+
 let lbCurrent = 0;
+let lbPlaying = false;
+let lbTimer = null;
 
 function lbOpen(i) {
   lbCurrent = i;
@@ -127,6 +134,7 @@ function lbOpen(i) {
 }
 
 function lbClose() {
+  lbStopSlideshow();
   document.getElementById("lightbox").classList.remove("is-active");
   document.documentElement.classList.remove("is-clipped");
   document.getElementById("lb-media").innerHTML = "";
@@ -140,6 +148,34 @@ function lbPrev() {
 function lbNext() {
   lbCurrent = (lbCurrent + 1) % lbItems.length;
   lbRender();
+}
+
+function lbToggleSlideshow() {
+  if (lbPlaying) {
+    lbStopSlideshow();
+  } else {
+    lbPlaying = true;
+    document.getElementById("lb-play").innerHTML = "&#10074;&#10074;";
+    lbScheduleNext();
+  }
+}
+
+function lbStopSlideshow() {
+  lbPlaying = false;
+  clearTimeout(lbTimer);
+  document.getElementById("lb-play").innerHTML = "&#9654;";
+}
+
+// Images advance after SLIDESHOW_SECONDS; videos advance when they finish playing.
+function lbScheduleNext() {
+  clearTimeout(lbTimer);
+  if (!lbPlaying) return;
+  const video = document.querySelector("#lb-media video");
+  if (video) {
+    video.addEventListener("ended", lbNext, { once: true });
+  } else {
+    lbTimer = setTimeout(lbNext, SLIDESHOW_SECONDS * 1000);
+  }
 }
 
 function lbRender() {
@@ -162,6 +198,9 @@ function lbRender() {
   const single = lbItems.length <= 1;
   document.getElementById("lb-prev").style.display = single ? "none" : "";
   document.getElementById("lb-next").style.display = single ? "none" : "";
+  document.getElementById("lb-play").style.display = single ? "none" : "";
+
+  lbScheduleNext();
 }
 
 document.addEventListener("keydown", e => {
